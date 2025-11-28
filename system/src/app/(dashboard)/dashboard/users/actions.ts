@@ -1,7 +1,7 @@
 'use server';
 
-import { createClient } from '@supabase/supabase-js';
 import { createClient as createServerClient } from '@/utils/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 
 // Lazy initialization of admin client to ensure environment variables are available
 function getSupabaseAdmin() {
@@ -10,7 +10,7 @@ function getSupabaseAdmin() {
     const supabaseSecretKey = process.env.SUPABASE_SECRET_API_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseSecretKey) {
-        throw new Error('Missing Supabase environment variables (NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_API_KEY)');
+        throw new Error('Missing Supabase environment variables');
     }
 
     return createClient(supabaseUrl, supabaseSecretKey, {
@@ -22,19 +22,19 @@ function getSupabaseAdmin() {
 }
 
 interface CreateUserParams {
-  email: string;
-  password: string;
-  full_name: string;
-  role: 'user' | 'admin';
+    email: string;
+    password: string;
+    full_name: string;
+    role: 'user' | 'admin';
 }
 
 interface CreateUserResult {
-  success: boolean;
-  error?: string;
-  user?: {
-    id: string;
-    email: string;
-  };
+    success: boolean;
+    error?: string;
+    user?: {
+        id: string;
+        email: string;
+    };
 }
 
 export async function createUser(params: CreateUserParams): Promise<CreateUserResult> {
@@ -44,44 +44,47 @@ export async function createUser(params: CreateUserParams): Promise<CreateUserRe
         supabaseAdmin = getSupabaseAdmin();
     } catch (envError) {
         console.error('Environment configuration error:', envError);
-        return { success: false, error: 'Server configuration error. Please contact administrator.' };
+        return {success: false, error: 'Server configuration error. Please contact administrator.'};
     }
 
     try {
-    // Verify the requesting user is authenticated and has permission
+        // Verify the requesting user is authenticated and has permission
         const supabase = await createServerClient();
         const {
-            data: { user: currentUser },
+            data: {user: currentUser},
             error: authError
         } = await supabase.auth.getUser();
 
         if (authError || !currentUser) {
-            return { success: false, error: 'Unauthorized' };
+            return {success: false, error: 'Unauthorized'};
         }
 
         // Get current user's role from database
-        const { data: currentUserData, error: userError } = await supabase.from('users').select('role').eq('id', currentUser.id).single();
+        const {
+            data: currentUserData,
+            error: userError
+        } = await supabase.from('users').select('role').eq('id', currentUser.id).single();
 
         if (userError || !currentUserData) {
-            return { success: false, error: 'User not found' };
+            return {success: false, error: 'User not found'};
         }
 
         const currentUserRole = currentUserData.role;
 
         // Only root and admin can create users
         if (currentUserRole !== 'root' && currentUserRole !== 'admin') {
-            return { success: false, error: 'Insufficient permissions' };
+            return {success: false, error: 'Insufficient permissions'};
         }
 
         // Validate email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(params.email)) {
-            return { success: false, error: 'Invalid email format' };
+            return {success: false, error: 'Invalid email format'};
         }
 
         // Validate password length
         if (params.password.length < 6) {
-            return { success: false, error: 'Password must be at least 6 characters' };
+            return {success: false, error: 'Password must be at least 6 characters'};
         }
 
         // Determine the role to assign
@@ -93,7 +96,7 @@ export async function createUser(params: CreateUserParams): Promise<CreateUserRe
         // Admin can only create users with 'user' role
 
         // Create user with admin API (doesn't log in the new user)
-        const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        const {data: authData, error: createError} = await supabaseAdmin.auth.admin.createUser({
             email: params.email,
             password: params.password,
             email_confirm: true,
@@ -104,15 +107,15 @@ export async function createUser(params: CreateUserParams): Promise<CreateUserRe
 
         if (createError) {
             console.error('Error creating user:', createError);
-            return { success: false, error: createError.message };
+            return {success: false, error: createError.message};
         }
 
         if (!authData.user) {
-            return { success: false, error: 'Failed to create user' };
+            return {success: false, error: 'Failed to create user'};
         }
 
         // Update user profile in users table
-        const { error: updateError } = await supabaseAdmin
+        const {error: updateError} = await supabaseAdmin
             .from('users')
             .update({
                 full_name: params.full_name,
@@ -134,13 +137,13 @@ export async function createUser(params: CreateUserParams): Promise<CreateUserRe
         };
     } catch (error) {
         console.error('Unexpected error:', error);
-        return { success: false, error: 'Internal server error' };
+        return {success: false, error: 'Internal server error'};
     }
 }
 
 interface DeleteUserResult {
-  success: boolean;
-  error?: string;
+    success: boolean;
+    error?: string;
 }
 
 export async function deleteUser(userId: string): Promise<DeleteUserResult> {
@@ -150,55 +153,58 @@ export async function deleteUser(userId: string): Promise<DeleteUserResult> {
         supabaseAdmin = getSupabaseAdmin();
     } catch (envError) {
         console.error('Environment configuration error:', envError);
-        return { success: false, error: 'Server configuration error. Please contact administrator.' };
+        return {success: false, error: 'Server configuration error. Please contact administrator.'};
     }
 
     try {
         const supabase = await createServerClient();
         const {
-            data: { user: currentUser },
+            data: {user: currentUser},
             error: authError
         } = await supabase.auth.getUser();
 
         if (authError || !currentUser) {
-            return { success: false, error: 'Unauthorized' };
+            return {success: false, error: 'Unauthorized'};
         }
 
         // Get current user's role from database
-        const { data: currentUserData, error: userError } = await supabase.from('users').select('role').eq('id', currentUser.id).single();
+        const {
+            data: currentUserData,
+            error: userError
+        } = await supabase.from('users').select('role').eq('id', currentUser.id).single();
 
         if (userError || !currentUserData) {
-            return { success: false, error: 'User not found' };
+            return {success: false, error: 'User not found'};
         }
 
         // Only root can delete users
         if (currentUserData.role !== 'root') {
-            return { success: false, error: 'Insufficient permissions' };
+            return {success: false, error: 'Insufficient permissions'};
         }
 
         // Cannot delete yourself
         if (userId === currentUser.id) {
-            return { success: false, error: 'Cannot delete your own account' };
+            return {success: false, error: 'Cannot delete your own account'};
         }
 
         // Delete user with admin API
-        const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+        const {error: deleteError} = await supabaseAdmin.auth.admin.deleteUser(userId);
 
         if (deleteError) {
             console.error('Error deleting user:', deleteError);
-            return { success: false, error: deleteError.message };
+            return {success: false, error: deleteError.message};
         }
 
-        return { success: true };
+        return {success: true};
     } catch (error) {
         console.error('Unexpected error:', error);
-        return { success: false, error: 'Internal server error' };
+        return {success: false, error: 'Internal server error'};
     }
 }
 
 interface ResetPasswordResult {
-  success: boolean;
-  error?: string;
+    success: boolean;
+    error?: string;
 }
 
 export async function resetUserPassword(userId: string, newPassword: string): Promise<ResetPasswordResult> {
@@ -208,37 +214,43 @@ export async function resetUserPassword(userId: string, newPassword: string): Pr
         supabaseAdmin = getSupabaseAdmin();
     } catch (envError) {
         console.error('Environment configuration error:', envError);
-        return { success: false, error: 'Server configuration error. Please contact administrator.' };
+        return {success: false, error: 'Server configuration error. Please contact administrator.'};
     }
 
     try {
         const supabase = await createServerClient();
         const {
-            data: { user: currentUser },
+            data: {user: currentUser},
             error: authError
         } = await supabase.auth.getUser();
 
         if (authError || !currentUser) {
-            return { success: false, error: 'Unauthorized' };
+            return {success: false, error: 'Unauthorized'};
         }
 
         // Get current user's role from database
-        const { data: currentUserData, error: userError } = await supabase.from('users').select('role').eq('id', currentUser.id).single();
+        const {
+            data: currentUserData,
+            error: userError
+        } = await supabase.from('users').select('role').eq('id', currentUser.id).single();
 
         if (userError || !currentUserData) {
-            return { success: false, error: 'User not found' };
+            return {success: false, error: 'User not found'};
         }
 
         // Validate password length
         if (newPassword.length < 6) {
-            return { success: false, error: 'Password must be at least 6 characters' };
+            return {success: false, error: 'Password must be at least 6 characters'};
         }
 
         // Get target user's role
-        const { data: targetUser, error: targetError } = await supabase.from('users').select('role').eq('id', userId).single();
+        const {
+            data: targetUser,
+            error: targetError
+        } = await supabase.from('users').select('role').eq('id', userId).single();
 
         if (targetError || !targetUser) {
-            return { success: false, error: 'Target user not found' };
+            return {success: false, error: 'Target user not found'};
         }
 
         // Check permissions
@@ -250,22 +262,22 @@ export async function resetUserPassword(userId: string, newPassword: string): Pr
         const canReset = (currentRole === 'root' && targetRole !== 'root') || (currentRole === 'admin' && targetRole === 'user');
 
         if (!canReset) {
-            return { success: false, error: 'Insufficient permissions' };
+            return {success: false, error: 'Insufficient permissions'};
         }
 
         // Reset password with admin API
-        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+        const {error: updateError} = await supabaseAdmin.auth.admin.updateUserById(userId, {
             password: newPassword
         });
 
         if (updateError) {
             console.error('Error resetting password:', updateError);
-            return { success: false, error: updateError.message };
+            return {success: false, error: updateError.message};
         }
 
-        return { success: true };
+        return {success: true};
     } catch (error) {
         console.error('Unexpected error:', error);
-        return { success: false, error: 'Internal server error' };
+        return {success: false, error: 'Internal server error'};
     }
 }

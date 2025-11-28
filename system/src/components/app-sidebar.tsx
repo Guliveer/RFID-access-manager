@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LayoutDashboard, Users, ScanLine, CreditCard, Shield, FileText, LogOut, ChevronUp, KeyRound, Settings, Key, Sun, Moon, Monitor, Check } from 'lucide-react';
+import { LayoutDashboard, Users, ScanLine, CreditCard, Shield, FileText, LogOut, ChevronUp, KeyRound, Settings, Key, Sun, Moon, Monitor, Check, FlaskConical } from 'lucide-react';
 import { toast } from 'sonner';
 
 const navigationItems = [
@@ -47,6 +47,14 @@ const navigationItems = [
         title: 'System Logs',
         url: '/dashboard/logs',
         icon: FileText
+    }
+];
+
+const devNavigationItems = [
+    {
+        title: 'API Tester',
+        url: '/dashboard/api-test',
+        icon: FlaskConical
     }
 ];
 
@@ -232,6 +240,25 @@ export function AppSidebar() {
                             </SidebarMenu>
                         </SidebarGroupContent>
                     </SidebarGroup>
+                    {process.env.NODE_ENV === 'development' && (
+                        <SidebarGroup>
+                            <SidebarGroupLabel>Development</SidebarGroupLabel>
+                            <SidebarGroupContent>
+                                <SidebarMenu>
+                                    {devNavigationItems.map((item) => (
+                                        <SidebarMenuItem key={item.title}>
+                                            <SidebarMenuButton asChild isActive={pathname === item.url}>
+                                                <a href={item.url}>
+                                                    <item.icon className="size-4" />
+                                                    <span>{item.title}</span>
+                                                </a>
+                                            </SidebarMenuButton>
+                                        </SidebarMenuItem>
+                                    ))}
+                                </SidebarMenu>
+                            </SidebarGroupContent>
+                        </SidebarGroup>
+                    )}
                 </SidebarContent>
                 <SidebarFooter>
                     <SidebarMenu>
