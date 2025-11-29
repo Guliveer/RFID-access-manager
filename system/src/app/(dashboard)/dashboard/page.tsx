@@ -73,22 +73,23 @@ const initialStats: DashboardStats = {
     topScanners: []
 };
 
-// Chart configurations
-const accessChartConfig: ChartConfig = {
-    granted: { label: 'Granted', color: 'hsl(142, 76%, 36%)' },
-    denied: { label: 'Denied', color: 'hsl(0, 84%, 60%)' },
-    unknown: { label: 'Unknown', color: 'hsl(45, 93%, 47%)' }
-};
-
-const resourcesChartConfig: ChartConfig = {
-    active: { label: 'Active', color: 'hsl(142, 76%, 36%)' },
-    inactive: { label: 'Inactive', color: 'hsl(220, 14%, 71%)' }
-};
-
 const COLORS = {
     granted: 'hsl(142, 76%, 36%)',
     denied: 'hsl(0, 84%, 60%)',
-    unknown: 'hsl(45, 93%, 47%)'
+    unknown: 'hsl(45, 93%, 47%)',
+    inactive: 'hsl(220, 14%, 71%)'
+};
+
+// Chart configurations
+const accessChartConfig: ChartConfig = {
+    granted: { label: 'Granted', color: COLORS.granted },
+    denied: { label: 'Denied', color: COLORS.denied },
+    unknown: { label: 'Unknown', color: COLORS.unknown }
+};
+
+const resourcesChartConfig: ChartConfig = {
+    active: { label: 'Active', color: COLORS.granted },
+    inactive: { label: 'Inactive', color: COLORS.inactive }
 };
 
 export default function DashboardPage() {
@@ -247,7 +248,9 @@ export default function DashboardPage() {
     };
 
     const handleDeleteUser = async (userId: string) => {
-        if (!confirm('Are you sure you want to delete this user?')) { return; }
+        if (!confirm('Are you sure you want to delete this user?')) {
+            return;
+        }
         const { error } = await supabase.from('users').delete().eq('id', userId);
         if (error) {
             toast.error('Failed to delete user');
@@ -268,7 +271,9 @@ export default function DashboardPage() {
     };
 
     const handleDeleteToken = async (tokenId: string) => {
-        if (!confirm('Are you sure you want to delete this token?')) { return; }
+        if (!confirm('Are you sure you want to delete this token?')) {
+            return;
+        }
         const { error } = await supabase.from('tokens').delete().eq('id', tokenId);
         if (error) {
             toast.error('Failed to delete token');
@@ -328,7 +333,8 @@ export default function DashboardPage() {
 
         if (resourceFilter === 'active') {
             return data.map((d) => ({ ...d, inactive: 0 }));
-        } if (resourceFilter === 'inactive') {
+        }
+        if (resourceFilter === 'inactive') {
             return data.map((d) => ({ ...d, active: 0 }));
         }
         return data;
