@@ -1,121 +1,158 @@
-# Arduino RFID Access Control System
+# RFID Access Control System - ESP32C3 + HTTPS
 
-System kontroli dostępu oparty na Arduino z czytnikiem RFID i komunikacją HTTP z API.
+System kontroli dostępu RFID z bezpieczną komunikacją HTTPS, oparty na XIAO ESP32C3.
 
-⚠️ **Problemy z RFID?** Zobacz szczegółowy przewodnik: **[TROUBLESHOOTING.md](TROUBLESHOOTING.md:1)**
+## 🎯 Funkcje
 
-## Wymagane komponenty sprzętowe
+- ✅ Bezpieczna komunikacja HTTPS (port 443) z API
+- ✅ WiFi wbudowany (nie potrzebny Ethernet Shield)
+- ✅ Odczyt kart RFID (MFRC522)
+- ✅ Sterowanie elektrozamkiem (solenoid)
+- ✅ Debouncing kart (2s) - zapobiega podwójnemu odczytowi
 
-- Arduino (Uno, Mega lub inny z obsługą Ethernet)
-- Ethernet Shield (W5100/W5500)
-- Czytnik RFID MFRC522
-- Solenoid (elektrozamek)
-- Moduł przekaźnika (do sterowania solenoidem)
-- Karta/tag RFID
+## 🔧 Wymagane komponenty
 
-## Schemat podłączenia
+### Hardware
+- **XIAO ESP32C3** - główna płytka z WiFi
+- **MFRC522** - czytnik RFID (13.56MHz)
+- **Przekaźnik** - do sterowania solenoidem
+- **Solenoid** - elektrozamek (12V/24V)
+- **Breadboard + przewody** - do połączeń
+- **Zasilacz zewnętrzny** - dla solenoidu
 
-### MFRC522 (czytnik RFID)
-- SDA (SS) → Pin 9 (WAŻNE: NIE pin 10!)
-- SCK → Pin 13
-- MOSI → Pin 11
-- MISO → Pin 12
-- IRQ → Nie podłączone
-- GND → GND
-- RST → Pin 8
-- 3.3V → 3.3V (WAŻNE: NIE podłączaj do 5V!)
+### Software
+- **Arduino IDE** 2.0+
+- **ESP32 Board Support** (Espressif)
+- **Biblioteka MFRC522** (GithubCommunity)
+- **WiFi** (wbudowana w ESP32)
+- **WiFiClientSecure** (wbudowana w ESP32)
 
-### Ethernet Shield
-- Podłącz bezpośrednio na Arduino (używa SPI)
-- Pin 10 → ZAWSZE używany przez Ethernet (hardware requirement)
-- Podłącz kabel Ethernet
+## 📦 Instalacja Arduino IDE
 
-**⚠️ UWAGA - Konflikt SPI:**
-RFID i Ethernet Shield używają tej samej magistrali SPI. Aby uniknąć konfliktów:
-- Ethernet MUSI używać pin 10 (sprzętowy wymóg)
-- RFID MUSI używać inny pin (w tym projekcie: pin 9)
-- Kod automatycznie zarządza aktywacją/deaktywacją każdego urządzenia
+### 1. Dodaj obsługę ESP32
+
+**File → Preferences → Additional Boards Manager URLs:**
+```
+https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+```
+
+**Tools → Board → Boards Manager:**
+- Wyszukaj: `esp32`
+- Zainstaluj: **esp32 by Espressif Systems**
+
+### 2. Zainstaluj bibliotekę MFRC522
+
+**Sketch → Include Library → Manage Libraries:**
+- Wyszukaj: `MFRC522`
+- Zainstaluj: **MFRC522 by GithubCommunity**
+
+### 3. Wybierz płytkę
+
+**Tools → Board → ESP32 Arduino:**
+- Wybierz: **XIAO_ESP32C3**
+
+## 🔌 Schemat połączeń
+
+### MFRC522 (czytnik RFID) → XIAO ESP32C3
+
+| MFRC522 Pin | → | ESP32C3 Pin | GPIO |
+|-------------|---|-------------|------|
+| **SDA (SS)** | → | **D2** | GPIO4 |
+| **RST** | → | **D1** | GPIO3 |
+| **SCK** | → | **D8** | GPIO8 |
+| **MISO** | → | **D9** | GPIO9 |
+| **MOSI** | → | **D10** | GPIO10 |
+| **VCC** | → | **3.3V** | - |
+| **GND** | → | **GND** | - |
+
+⚠️ **WAŻNE**: MFRC522 działa TYLKO na 3.3V! Nie podłączaj do 5V!
+
+### Przekaźnik (Solenoid) → XIAO ESP32C3
+
+| Przekaźnik Pin | → | ESP32C3 Pin | GPIO |
+|----------------|---|-------------|------|
+| **IN** | → | **D0** | GPIO2 |
+| **VCC** | → | **5V/VUSB** | - |
+| **GND** | → | **GND** | - |
 
 ### Solenoid
-- Sterowanie → Pin 2 (przez przekaźnik)
-- Zasilanie → Zewnętrzne zasilanie (12V/24V zależnie od solenoidu)
-- GND → Wspólna masa z Arduino
+- Podłącz przez przekaźnik (NIE bezpośrednio!)
+- Zasilanie: 12V lub 24V (zewnętrzne)
+- Masa: wspólna z ESP32C3
 
-## Wymagane biblioteki Arduino
+## ⚙️ Konfiguracja
 
-Zainstaluj następujące biblioteki przez Arduino IDE (Sketch → Include Library → Manage Libraries):
+### 1. Otwórz plik Arduino.ino
 
-1. **MFRC522** (by GithubCommunity)
-   - Do obsługi czytnika RFID
+### 2. Zmień dane WiFi (linie 6-7):
+```cpp
+const char* ssid = "TWOJA_SIEC_WIFI";
+const char* password = "TWOJE_HASLO";
+```
 
-2. **Ethernet** (wbudowana)
-   - Do obsługi komunikacji Ethernet
+### 3. Zmień Scanner ID (linia 15):
+```cpp
+const char* scannerId = "TWOJ_SCANNER_ID";
+```
+(Pobierz z swojego panelu API)
 
-3. **SPI** (wbudowana)
-   - Do komunikacji SPI
+### 4. Wgraj kod
+- Podłącz ESP32C3 przez USB
+- Kliknij **Upload** (Ctrl+U)
 
-## Instalacja bibliotek
+## 🚀 Użycie
 
-W Arduino IDE:
-1. Otwórz: Sketch → Include Library → Manage Libraries
-2. Wyszukaj i zainstaluj: **MFRC522**
-3. Biblioteki Ethernet i SPI są już wbudowane
+### 1. Otwórz Serial Monitor
+- **Tools → Serial Monitor**
+- Ustaw baud rate: **9600**
 
-## Konfiguracja
+### 2. Uruchomienie
+```
+=== RFID Access Control - HTTPS ===
 
-1. Otwórz [`ArduinoProject.ino`](ArduinoProject.ino:1) w Arduino IDE
-2. W razie potrzeby zmień adres MAC w linii 9:
-   ```cpp
-   byte mac[] = { 0x90, 0xA2, 0xDA, 0x10, 0x8F, 0x12 };
-   ```
-3. Opcjonalnie dostosuj piny w liniach 9-12:
-   ```cpp
-   #define ETHERNET_CS_PIN 10  // NIE ZMIENIAJ - wymagane przez Ethernet Shield
-   #define RFID_RST_PIN 8
-   #define RFID_SS_PIN 9       // MUSI być inny niż 10!
-   #define SOLENOID_PIN 2
-   ```
+Laczenie z WiFi... OK
+IP: 192.168.1.xxx
 
-## Jak działa zarządzanie SPI
+System gotowy - przyloz karte RFID
+```
 
-Ponieważ RFID i Ethernet używają tej samej magistrali SPI, kod implementuje mechanizm wzajemnego wykluczania:
+### 3. Przyłóż kartę RFID
+```
+[KARTA] Token: ABCD1234
+Sprawdzanie dostepu... OK
+[DOSTEP] Przyznany!
+Otwieranie drzwi...
+Zamknieto
+```
 
-1. **W setup():**
-   - Inicjalizuje oba piny CS (Chip Select)
-   - Dezaktywuje oba urządzenia (HIGH)
-   - Inicjalizuje Ethernet, potem RFID - po kolei
+## 🔒 Bezpieczeństwo
 
-2. **W loop():**
-   - Aktywuje RFID (LOW) → odczytuje kartę → dezaktywuje (HIGH)
-   - Aktywuje Ethernet (LOW) → wysyła request → dezaktywuje (HIGH)
-   - W danym momencie tylko jedno urządzenie jest aktywne
+### HTTPS
+- Połączenie szyfrowane SSL/TLS
+- Port 443
+- API: `rfid-access-manager.vercel.app`
 
-## Jak to działa
+### Tryb SSL
+Kod używa `client.setInsecure()` - nie weryfikuje certyfikatu serwera.
 
-1. System inicjalizuje połączenie Ethernet (DHCP) i czytnik RFID
-2. Gdy zbliżysz kartę RFID do czytnika:
-   - Arduino odczytuje ID karty (np. "A1B2C3D4")
-   - Wysyła żądanie POST przez HTTP do API: `http://rfid-access-manager.vercel.app/api/v1/access`
-   - API sprawdza czy karta jest autoryzowana
-3. Jeśli dostęp jest przyznany:
-   - Solenoid zostaje otwarty na 3 sekundy
-   - Na Serial Monitor wyświetla się "Dostep PRZYZNANY!"
-4. Jeśli dostęp jest odmówiony:
-   - Solenoid pozostaje zamknięty
-   - Na Serial Monitor wyświetla się "Dostep ODMOWIONY!"
+**Dla pełnej weryfikacji** dodaj certyfikat CA:
+```cpp
+const char* root_ca = "-----BEGIN CERTIFICATE-----\n"
+"...\n"
+"-----END CERTIFICATE-----\n";
 
-## Format API
+client.setCACert(root_ca);
+```
 
-**Endpoint:** `POST http://rfid-access-manager.vercel.app/api/v1/access`
+## 📡 API
 
-**Uwaga:** Standardowy Arduino Ethernet Shield nie obsługuje HTTPS natywnie. Jeśli API wymaga HTTPS, potrzebujesz:
-- Arduino z WiFiClientSecure (ESP8266/ESP32)
-- Lub dodatkowej biblioteki SSL dla Ethernet (np. SSLClient z certyfikatami)
+**Endpoint:** `POST https://rfid-access-manager.vercel.app/api/v1/access`
 
 **Request Body:**
 ```json
 {
-  "rfidTag": "A1B2C3D4"
+  "scanner": "7f3eeb72-5ca2-4e19-843c-dbedccaa3f00",
+  "token": "ABCD1234"
 }
 ```
 
@@ -135,77 +172,82 @@ Ponieważ RFID i Ethernet używają tej samej magistrali SPI, kod implementuje m
 }
 ```
 
-## Testowanie i diagnostyka
+## 🐛 Rozwiązywanie problemów
 
-**WAŻNE:** Kod ma wbudowaną diagnostykę! Otwórz Serial Monitor (9600 baud) aby zobaczyć szczegółowe logi.
+### Czytnik RFID nie wykrywa kart
+- Sprawdź czy MFRC522 jest zasilany **3.3V** (NIE 5V!)
+- Sprawdź połączenia SPI (D8, D9, D10)
+- Upewnij się że RST jest podłączony do D1
+- Przyłóż kartę bliżej czytnika (1-2 cm)
 
-Co powinno się wyświetlać:
-- `[DEBUG] Petla dziala... Czekam na karte...` - system działa, czeka na kartę
-- `[DEBUG] Wykryto obecnosc karty!` - czytnik wykrył kartę
-- `[DEBUG] Karta odczytana pomyslnie!` - dane karty odczytane
-- `Wykryto karte RFID: XXXXXXXX` - wyświetlone ID karty
-
-Jeśli nie widzisz tych komunikatów, sprawdź **[TROUBLESHOOTING.md](TROUBLESHOOTING.md:1)**
-
-## Testowanie
-
-1. Wgraj kod na Arduino
-2. Otwórz Serial Monitor (9600 baud)
-3. Poczekaj na komunikat "Czytnik RFID gotowy"
-4. Przyłóż kartę RFID do czytnika
-5. Obserwuj komunikaty w Serial Monitor
-
-## Przykładowe ID kart do testów
-
-System odczytuje rzeczywiste ID z kart RFID. Przykładowe formaty ID:
-- `A1B2C3D4`
-- `1A2B3C4D`
-- `DEADBEEF`
-
-## Szybkie rozwiązywanie problemów
-
-💡 **Szczegółowy przewodnik:** [TROUBLESHOOTING.md](TROUBLESHOOTING.md:1)
-
-## Najczęstsze problemy
-
-### Błąd: "Failed to configure Ethernet using DHCP"
-- Sprawdź podłączenie Ethernet Shield
-- Upewnij się, że kabel Ethernet jest podłączony do routera z DHCP
-
-### Błąd: "NIE MOZNA POLACZYC Z SERWEREM!"
-- Sprawdź połączenie internetowe i kabel Ethernet
+### WiFi nie łączy się
+- Sprawdź SSID i hasło w kodzie
+- Upewnij się że WiFi jest 2.4 GHz (ESP32C3 nie obsługuje 5 GHz)
 - Sprawdź czy router ma włączony DHCP
-- Sprawdź adres IP Arduino w Serial Monitor
-- Sprawdź czy możesz pingować Arduino z komputera
-- Jeśli API wymaga HTTPS, rozważ użycie ESP8266/ESP32 zamiast Arduino Uno
 
-### Czytnik RFID nie reaguje
-- **NAJCZĘSTSZY PROBLEM:** Pin SS (SDA) musi być na pin 9, NIE na pin 10!
-- Sprawdź podłączenie wszystkich pinów według schematu
-- Upewnij się, że czytnik jest zasilany 3.3V (NIE 5V!)
-- Sprawdź czy karta jest kompatybilna (MIFARE Classic 1K, 4K, Ultralight)
-- W Serial Monitor sprawdź czy widzisz "[ OK ] Czytnik RFID" podczas startu
-- Jeśli widzisz błędy inicjalizacji SPI, sprawdź połączenia MOSI/MISO/SCK
-
-### Ethernet i RFID się "gryzą"
-- To normalny problem gdy oba używają SPI
-- Kod już zawiera rozwiązanie (kontrola pinów CS)
-- Upewnij się, że RFID używa pin 9, a Ethernet pin 10
-- NIE używaj pin 10 dla RFID - to spowoduje konflikt!
+### Błąd połączenia z API
+- Sprawdź połączenie internetowe
+- Upewnij się że API działa (otwórz w przeglądarce)
+- Sprawdź czy firewall nie blokuje port 443
 
 ### Solenoid nie otwiera się
-- Sprawdź podłączenie przekaźnika
-- Upewnij się, że solenoid ma odpowiednie zewnętrzne zasilanie
-- Sprawdź czy przekaźnik działa (powinna być słyszalna kliknięcie)
+- Sprawdź czy przekaźnik jest prawidłowo podłączony
+- Upewnij się że solenoid ma odpowiednie zasilanie (12V/24V)
+- Sprawdź czy masa jest wspólna dla wszystkich komponentów
 
-## Uwagi bezpieczeństwa
+## 📊 Specyfikacja techniczna
 
-⚠️ **WAŻNE:**
-- NIE podłączaj solenoidu bezpośrednio do Arduino - użyj przekaźnika
-- Użyj zewnętrznego zasilania dla solenoidu (12V lub 24V)
-- Upewnij się, że masa (GND) Arduino i zewnętrznego zasilania są połączone
-- W środowisku produkcyjnym rozważ dodanie dodatkowych zabezpieczeń (np. timeout, alarm)
+### XIAO ESP32C3
+- **Procesor**: ESP32-C3 (RISC-V, 160 MHz)
+- **Flash**: 4 MB
+- **RAM**: 400 KB
+- **WiFi**: 2.4 GHz 802.11 b/g/n
+- **Rozmiar**: 21 x 17.5 mm
 
-## Licencja
+### Zużycie pamięci
+- **Flash**: ~350 KB (~8.5%)
+- **RAM**: ~30 KB podczas pracy
 
-Ten projekt jest udostępniony jako open source do celów edukacyjnych.
+### Timing
+- **Debouncing kart**: 2 sekundy
+- **Timeout API**: 10 sekund
+- **Czas otwarcia**: 3 sekundy
+
+## 📝 Struktura kodu
+
+```
+arduino/
+├── Arduino.ino  # Główny plik programu
+└── README.md    # Ta dokumentacja
+```
+
+### Funkcje:
+- `setup()` - Inicjalizacja systemu
+- `loop()` - Główna pętla programu
+- `getCardID()` - Odczyt ID karty RFID
+- `checkAccess()` - Weryfikacja dostępu przez API
+- `openDoor()` - Otwarcie elektrozamka
+
+## 🔄 Changelog
+
+### v1.0.0 (2025-11-30)
+- ✅ Migracja z Arduino Uno na XIAO ESP32C3
+- ✅ Zmiana z HTTP na HTTPS
+- ✅ WiFi zamiast Ethernet Shield
+- ✅ Optymalizacja kodu (usunięcie debug logów)
+- ✅ Czysty, produkcyjny kod
+
+## 📄 Licencja
+
+Projekt open source - do celów edukacyjnych i komercyjnych.
+
+## 🤝 Wsparcie
+
+W razie problemów:
+1. Sprawdź sekcję "Rozwiązywanie problemów"
+2. Otwórz Serial Monitor i sprawdź komunikaty
+3. Upewnij się że wszystkie połączenia są poprawne
+
+## 🎓 Autor
+
+System RFID Access Control z obsługą HTTPS dla ESP32C3.
