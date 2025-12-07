@@ -2,47 +2,47 @@ import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
 interface ResponseAccess {
-    granted: boolean;
-    until?: string;
-    denyReason?: string;
+  granted: boolean;
+  until?: string;
+  denyReason?: string;
 }
 
 interface ResponseData {
-    token: string;
-    user: string;
-    scanner: string;
+  rfid_uid: string;
+  user_id: string;
+  scanner_id: string;
 }
 
 interface SuccessResponse {
-    access: ResponseAccess;
-    data: ResponseData;
-    timestamp: string;
+  access: ResponseAccess;
+  data: ResponseData;
+  timestamp: string;
 }
 
 interface ErrorResponse {
-    access: { granted: false };
-    error: string;
-    timestamp: string;
+  access: { granted: false };
+  error: string;
+  timestamp: string;
 }
 
 type Response = SuccessResponse | ErrorResponse;
 
 // Database function response type
 interface DbFunctionResponse {
-    success: boolean;
-    error?: string;
-    error_code?: string;
-    access?: {
-        granted: boolean;
-        until?: string;
-        denyReason?: string;
-    };
-    data?: {
-        token: string;
-        user: string;
-        scanner: string;
-    };
-    timestamp?: string;
+  success: boolean;
+  error?: string;
+  error_code?: string;
+  access?: {
+    granted: boolean;
+    until?: string;
+    denyReason?: string;
+  };
+  data?: {
+    rfid_uid: string;
+    user_id: string;
+    scanner_id: string;
+  };
+  timestamp?: string;
 }
 
 /**
@@ -74,17 +74,17 @@ export async function POST(request: Request): Promise<NextResponse<Response>> {
 
     try {
         const body = await request.json();
-        const {scanner, token} = body;
+        const { scanner, token } = body;
 
         // Validate required parameters
         if (!scanner || !token) {
             return NextResponse.json(
                 {
-                    access: {granted: false},
+                    access: { granted: false },
                     error: 'Missing required fields. Both scanner and token are required.',
                     timestamp
                 },
-                {status: 400}
+                { status: 400 }
             );
         }
 
@@ -92,7 +92,7 @@ export async function POST(request: Request): Promise<NextResponse<Response>> {
         const supabase = await createClient();
 
         // Call the database function
-        const {data, error} = await supabase.rpc('check_rfid_access', {
+        const { data, error } = await supabase.rpc('check_rfid_access', {
             p_scanner_id: scanner,
             p_token_uid: token
         });
@@ -105,21 +105,21 @@ export async function POST(request: Request): Promise<NextResponse<Response>> {
             if (error.message?.includes('function') || error.code === '42883') {
                 return NextResponse.json(
                     {
-                        access: {granted: false},
+                        access: { granted: false },
                         error: 'Database function not found. Please run the SQL migration.',
                         timestamp
                     },
-                    {status: 500}
+                    { status: 500 }
                 );
             }
 
             return NextResponse.json(
                 {
-                    access: {granted: false},
+                    access: { granted: false },
                     error: `Database error: ${error.message || 'Unknown error'}`,
                     timestamp
                 },
-                {status: 500}
+                { status: 500 }
             );
         }
 
@@ -143,11 +143,11 @@ export async function POST(request: Request): Promise<NextResponse<Response>> {
 
             return NextResponse.json(
                 {
-                    access: {granted: false},
+                    access: { granted: false },
                     error: result.error || 'Unknown error',
                     timestamp
                 },
-                {status}
+                { status }
             );
         }
 
@@ -158,18 +158,18 @@ export async function POST(request: Request): Promise<NextResponse<Response>> {
                 data: result.data!,
                 timestamp: result.timestamp || timestamp
             },
-            {status: result.access!.granted ? 200 : 403}
+            { status: result.access!.granted ? 200 : 403 }
         );
     } catch (error) {
         console.error('POST access error:', error);
         console.error('Error details:', error instanceof Error ? error.message : String(error));
         return NextResponse.json(
             {
-                access: {granted: false},
+                access: { granted: false },
                 error: error instanceof Error ? error.message : 'Internal server error',
                 timestamp
             },
-            {status: 500}
+            { status: 500 }
         );
     }
 }
