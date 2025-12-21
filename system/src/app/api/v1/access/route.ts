@@ -65,9 +65,9 @@ interface DbFunctionResponse {
  * @returns JSON response with access decision
  *
  * @throws {400} Missing required fields (scanner or token)
- * @throws {403} Token is disabled, Scanner is disabled, or Access denied
+ * @throws {403} Resource disabled (token, scanner, user, or access rule is disabled)
+ * @throws {403} Access denied (access expired or no permission granted)
  * @throws {404} Token not found, User not found, or Scanner not found
- * @throws {500} Internal server error
  */
 export async function POST(request: Request): Promise<NextResponse<Response>> {
     const timestamp = new Date().toISOString();
