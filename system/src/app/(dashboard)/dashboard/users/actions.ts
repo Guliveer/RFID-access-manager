@@ -1,25 +1,7 @@
 'use server';
 
 import { createClient as createServerClient } from '@/utils/supabase/server';
-import { createClient } from '@supabase/supabase-js';
-
-// Lazy initialization of admin client to ensure environment variables are available
-function getSupabaseAdmin() {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    // Support both old and new naming conventions for the secret key
-    const supabaseSecretKey = process.env.SUPABASE_SECRET_API_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseSecretKey) {
-        throw new Error('Missing Supabase environment variables');
-    }
-
-    return createClient(supabaseUrl, supabaseSecretKey, {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false
-        }
-    });
-}
+import { supabaseAdmin } from '@/utils/supabase/admin';
 
 interface CreateUserParams {
   email: string;
@@ -37,62 +19,102 @@ interface CreateUserResult {
   };
 }
 
-export async function createUser(params: CreateUserParams): Promise<CreateUserResult> {
-    // Get admin client first to fail fast if env vars are missing
-    let supabaseAdmin;
-    try {
-        supabaseAdmin = getSupabaseAdmin();
-    } catch (envError) {
-        console.error('Environment configuration error:', envError);
-        return { success: false, error: 'Server configuration error. Please contact administrator.' };
+interface DeleteUserResult {
+  success: boolean;
+  error?: string;
+}
+
+interface ToggleUserActiveResult {
+  success: boolean;
+  error?: string;
+  isActive?: boolean;
+}
+
+interface ResetPasswordResult {
+  success: boolean;
+  error?: string;
+}
+
+interface AuthenticatedUser {
+  id: string;
+  role: string;
+}
+
+type UserRole = 'root' | 'admin' | 'user';
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD_LENGTH = 6;
+
+async function getAuthenticatedUserWithRole(): Promise<{ user: AuthenticatedUser | null; error: string | null }> {
+    const supabase = await createServerClient();
+    const {
+        data: { user: currentUser },
+        error: authError
+    } = await supabase.auth.getUser();
+
+    if (authError || !currentUser) {
+        return { user: null, error: 'Unauthorized' };
     }
 
+    const { data: userData, error: userError } = await supabase.from('users').select('role').eq('id', currentUser.id).single();
+
+    if (userError || !userData) {
+        return { user: null, error: 'User not found' };
+    }
+
+    return { user: { id: currentUser.id, role: userData.role }, error: null };
+}
+
+async function getTargetUserRole(userId: string): Promise<{ role: UserRole | null; error: string | null }> {
+    const supabase = await createServerClient();
+    const { data: targetUser, error: targetError } = await supabase.from('users').select('role').eq('id', userId).single();
+
+    if (targetError || !targetUser) {
+        return { role: null, error: 'Target user not found' };
+    }
+
+    return { role: targetUser.role as UserRole, error: null };
+}
+
+function canManageLowerRole(currentRole: string, targetRole: string): boolean {
+    return (currentRole === 'root' && targetRole !== 'root') || (currentRole === 'admin' && targetRole === 'user');
+}
+
+function isValidEmail(email: string): boolean {
+    return EMAIL_REGEX.test(email);
+}
+
+function isValidPassword(password: string): boolean {
+    return password.length >= MIN_PASSWORD_LENGTH;
+}
+
+export async function createUser(params: CreateUserParams): Promise<CreateUserResult> {
     try {
-    // Verify the requesting user is authenticated and has permission
-        const supabase = await createServerClient();
-        const {
-            data: { user: currentUser },
-            error: authError
-        } = await supabase.auth.getUser();
+        const { user: currentUser, error: authError } = await getAuthenticatedUserWithRole();
 
         if (authError || !currentUser) {
-            return { success: false, error: 'Unauthorized' };
+            return { success: false, error: authError || 'Unauthorized' };
         }
 
-        // Get current user's role from database
-        const { data: currentUserData, error: userError } = await supabase.from('users').select('role').eq('id', currentUser.id).single();
+        const currentUserRole = currentUser.role;
 
-        if (userError || !currentUserData) {
-            return { success: false, error: 'User not found' };
-        }
-
-        const currentUserRole = currentUserData.role;
-
-        // Only root and admin can create users
         if (currentUserRole !== 'root' && currentUserRole !== 'admin') {
             return { success: false, error: 'Insufficient permissions' };
         }
 
-        // Validate email format
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(params.email)) {
+        if (!isValidEmail(params.email)) {
             return { success: false, error: 'Invalid email format' };
         }
 
-        // Validate password length
-        if (params.password.length < 6) {
+        if (!isValidPassword(params.password)) {
             return { success: false, error: 'Password must be at least 6 characters' };
         }
 
-        // Determine the role to assign
         let assignedRole: 'user' | 'admin' = 'user';
         if (currentUserRole === 'root' && params.role) {
-            // Root can assign user or admin role (not root)
             assignedRole = params.role;
         }
-        // Admin can only create users with 'user' role
 
-        // Create user with admin API (doesn't log in the new user)
         const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
             email: params.email,
             password: params.password,
@@ -111,7 +133,6 @@ export async function createUser(params: CreateUserParams): Promise<CreateUserRe
             return { success: false, error: 'Failed to create user' };
         }
 
-        // Update user profile in users table
         const { error: updateError } = await supabaseAdmin
             .from('users')
             .update({
@@ -122,7 +143,6 @@ export async function createUser(params: CreateUserParams): Promise<CreateUserRe
 
         if (updateError) {
             console.error('Error updating user profile:', updateError);
-            // User was created but profile update failed - still return success
         }
 
         return {
@@ -138,50 +158,22 @@ export async function createUser(params: CreateUserParams): Promise<CreateUserRe
     }
 }
 
-interface DeleteUserResult {
-  success: boolean;
-  error?: string;
-}
-
 export async function deleteUser(userId: string): Promise<DeleteUserResult> {
-    // Get admin client first to fail fast if env vars are missing
-    let supabaseAdmin;
     try {
-        supabaseAdmin = getSupabaseAdmin();
-    } catch (envError) {
-        console.error('Environment configuration error:', envError);
-        return { success: false, error: 'Server configuration error. Please contact administrator.' };
-    }
-
-    try {
-        const supabase = await createServerClient();
-        const {
-            data: { user: currentUser },
-            error: authError
-        } = await supabase.auth.getUser();
+        const { user: currentUser, error: authError } = await getAuthenticatedUserWithRole();
 
         if (authError || !currentUser) {
-            return { success: false, error: 'Unauthorized' };
+            return { success: false, error: authError || 'Unauthorized' };
         }
 
-        // Get current user's role from database
-        const { data: currentUserData, error: userError } = await supabase.from('users').select('role').eq('id', currentUser.id).single();
-
-        if (userError || !currentUserData) {
-            return { success: false, error: 'User not found' };
-        }
-
-        // Only root can delete users
-        if (currentUserData.role !== 'root') {
+        if (currentUser.role !== 'root') {
             return { success: false, error: 'Insufficient permissions' };
         }
 
-        // Cannot delete yourself
         if (userId === currentUser.id) {
             return { success: false, error: 'Cannot delete your own account' };
         }
 
-        // Delete user with admin API
         const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
         if (deleteError) {
@@ -196,70 +188,32 @@ export async function deleteUser(userId: string): Promise<DeleteUserResult> {
     }
 }
 
-interface ToggleUserActiveResult {
-  success: boolean;
-  error?: string;
-  isActive?: boolean;
-}
-
 export async function toggleUserActive(userId: string, isActive: boolean): Promise<ToggleUserActiveResult> {
-    // Get admin client first to fail fast if env vars are missing
-    let supabaseAdmin;
     try {
-        supabaseAdmin = getSupabaseAdmin();
-    } catch (envError) {
-        console.error('Environment configuration error:', envError);
-        return { success: false, error: 'Server configuration error. Please contact administrator.' };
-    }
-
-    try {
-        const supabase = await createServerClient();
-        const {
-            data: { user: currentUser },
-            error: authError
-        } = await supabase.auth.getUser();
+        const { user: currentUser, error: authError } = await getAuthenticatedUserWithRole();
 
         if (authError || !currentUser) {
-            return { success: false, error: 'Unauthorized' };
+            return { success: false, error: authError || 'Unauthorized' };
         }
 
-        // Get current user's role from database
-        const { data: currentUserData, error: userError } = await supabase.from('users').select('role').eq('id', currentUser.id).single();
-
-        if (userError || !currentUserData) {
-            return { success: false, error: 'User not found' };
-        }
-
-        // Only root and admin can toggle user active status
-        if (currentUserData.role !== 'root' && currentUserData.role !== 'admin') {
+        if (currentUser.role !== 'root' && currentUser.role !== 'admin') {
             return { success: false, error: 'Insufficient permissions' };
         }
 
-        // Cannot toggle yourself
         if (userId === currentUser.id) {
             return { success: false, error: 'Cannot change your own active status' };
         }
 
-        // Get target user's role
-        const { data: targetUser, error: targetError } = await supabase.from('users').select('role').eq('id', userId).single();
+        const { role: targetRole, error: targetError } = await getTargetUserRole(userId);
 
-        if (targetError || !targetUser) {
-            return { success: false, error: 'Target user not found' };
+        if (targetError || !targetRole) {
+            return { success: false, error: targetError || 'Target user not found' };
         }
 
-        // Check permissions - can only toggle users with lower role
-        const currentRole = currentUserData.role;
-        const targetRole = targetUser.role;
-
-        // Root can toggle anyone except other roots
-        // Admin can toggle users only
-        const canToggle = (currentRole === 'root' && targetRole !== 'root') || (currentRole === 'admin' && targetRole === 'user');
-
-        if (!canToggle) {
+        if (!canManageLowerRole(currentUser.role, targetRole)) {
             return { success: false, error: 'Insufficient permissions' };
         }
 
-        // Update user active status in database
         const { error: updateError } = await supabaseAdmin.from('users').update({ is_active: isActive }).eq('id', userId);
 
         if (updateError) {
@@ -274,64 +228,28 @@ export async function toggleUserActive(userId: string, isActive: boolean): Promi
     }
 }
 
-interface ResetPasswordResult {
-  success: boolean;
-  error?: string;
-}
-
 export async function resetUserPassword(userId: string, newPassword: string): Promise<ResetPasswordResult> {
-    // Get admin client first to fail fast if env vars are missing
-    let supabaseAdmin;
     try {
-        supabaseAdmin = getSupabaseAdmin();
-    } catch (envError) {
-        console.error('Environment configuration error:', envError);
-        return { success: false, error: 'Server configuration error. Please contact administrator.' };
-    }
-
-    try {
-        const supabase = await createServerClient();
-        const {
-            data: { user: currentUser },
-            error: authError
-        } = await supabase.auth.getUser();
+        const { user: currentUser, error: authError } = await getAuthenticatedUserWithRole();
 
         if (authError || !currentUser) {
-            return { success: false, error: 'Unauthorized' };
+            return { success: false, error: authError || 'Unauthorized' };
         }
 
-        // Get current user's role from database
-        const { data: currentUserData, error: userError } = await supabase.from('users').select('role').eq('id', currentUser.id).single();
-
-        if (userError || !currentUserData) {
-            return { success: false, error: 'User not found' };
-        }
-
-        // Validate password length
-        if (newPassword.length < 6) {
+        if (!isValidPassword(newPassword)) {
             return { success: false, error: 'Password must be at least 6 characters' };
         }
 
-        // Get target user's role
-        const { data: targetUser, error: targetError } = await supabase.from('users').select('role').eq('id', userId).single();
+        const { role: targetRole, error: targetError } = await getTargetUserRole(userId);
 
-        if (targetError || !targetUser) {
-            return { success: false, error: 'Target user not found' };
+        if (targetError || !targetRole) {
+            return { success: false, error: targetError || 'Target user not found' };
         }
 
-        // Check permissions
-        const currentRole = currentUserData.role;
-        const targetRole = targetUser.role;
-
-        // Root can reset anyone's password except other roots
-        // Admin can reset user passwords only
-        const canReset = (currentRole === 'root' && targetRole !== 'root') || (currentRole === 'admin' && targetRole === 'user');
-
-        if (!canReset) {
+        if (!canManageLowerRole(currentUser.role, targetRole)) {
             return { success: false, error: 'Insufficient permissions' };
         }
 
-        // Reset password with admin API
         const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
             password: newPassword
         });

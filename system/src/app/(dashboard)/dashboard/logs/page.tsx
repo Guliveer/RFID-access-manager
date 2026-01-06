@@ -15,11 +15,10 @@ import { createClient } from '@/utils/supabase/client';
 import { logger } from '@/lib/logger';
 import { formatTimestamp, getDateFilterRange } from '@/lib/utils/format';
 import { PageHeader, StatCard, StatCardsGrid, FormDialog } from '@/components/dashboard';
-import { SimpleTable } from '@/components/dashboard/data-table';
+import { SimpleTable, type Column } from '@/components/dashboard/data-table';
 import { TableSkeleton } from '@/components/ui/loading-skeletons';
 import { useDialog, useForm, useSubmit } from '@/hooks/use-crud';
 import type { AccessLog, Scanner, User } from '@/types/database';
-import type { Column } from '@/components/dashboard/data-table';
 
 interface ExtendedAccessLog extends AccessLog {
   user_name?: string;
@@ -235,7 +234,9 @@ export default function LogsPage() {
             key: 'denial_reason',
             header: 'Reason',
             render: (log) => {
-                if (log.access_granted) { return <span className="text-muted-foreground">—</span>; }
+                if (log.access_granted) {
+                    return <span className="text-muted-foreground">—</span>;
+                }
                 const isUnknown = !log.token_id || !log.user_name;
                 return <Badge variant="outline">{log.denial_reason || (isUnknown ? 'Unknown token' : 'No access')}</Badge>;
             }

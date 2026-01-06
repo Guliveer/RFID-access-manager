@@ -154,7 +154,9 @@ export function useFilter<T extends Record<string, unknown>>({ defaultFilters, d
     }, [defaultFilters]);
 
     const hasActiveFilters = useMemo(() => {
-        if (searchQuery) { return true; }
+        if (searchQuery) {
+            return true;
+        }
         return Object.entries(filters).some(([key, value]) => {
             const defaultValue = defaultFilters[key as keyof T];
             return value !== defaultValue;
@@ -268,9 +270,15 @@ export function sortData<T>(data: T[], sortField: keyof T, sortDirection: SortDi
         const bValue = getValue ? getValue(b, sortField) : (b[sortField] as SortValue);
 
         // Handle null/undefined values
-        if (aValue == null && bValue == null) { return 0; }
-        if (aValue == null) { return sortDirection === 'asc' ? 1 : -1; }
-        if (bValue == null) { return sortDirection === 'asc' ? -1 : 1; }
+        if (aValue === null || aValue === undefined) {
+            if (bValue === null || bValue === undefined) {
+                return 0;
+            }
+            return sortDirection === 'asc' ? 1 : -1;
+        }
+        if (bValue === null || bValue === undefined) {
+            return sortDirection === 'asc' ? -1 : 1;
+        }
 
         // Handle booleans
         if (typeof aValue === 'boolean' && typeof bValue === 'boolean') {

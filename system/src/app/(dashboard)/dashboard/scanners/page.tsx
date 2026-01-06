@@ -62,6 +62,53 @@ const READER_TYPE_OPTIONS = [
 type SortField = 'id' | 'name' | 'location' | 'reader_type' | 'is_active' | 'created_at';
 type FilterState = { status: string; readerType: string };
 
+// Form fields component - defined outside to avoid recreation during render
+const ScannerFormFields = ({ form, updateField }: { form: ScannerForm; updateField: (field: keyof ScannerForm, value: string) => void }) => (
+    <>
+        <div className="space-y-2">
+            <Label htmlFor="name">Scanner Name</Label>
+            <Input id="name" placeholder="e.g., Main Entrance" value={form.name} onChange={(e) => updateField('name', e.target.value)} />
+        </div>
+        <div className="space-y-2">
+            <Label htmlFor="location">Location</Label>
+            <Input id="location" placeholder="e.g., Building A, Floor 1" value={form.location} onChange={(e) => updateField('location', e.target.value)} />
+        </div>
+        <div className="space-y-2">
+            <Label htmlFor="description">Description (Optional)</Label>
+            <Input id="description" placeholder="Additional details about this scanner" value={form.description} onChange={(e) => updateField('description', e.target.value)} />
+        </div>
+        <div className="space-y-2">
+            <Label htmlFor="reader_type">Reader Type</Label>
+            <Select value={form.reader_type} onValueChange={(value: ReaderType) => updateField('reader_type', value)}>
+                <SelectTrigger>
+                    <SelectValue placeholder="Select reader type" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="entry">
+                        <div className="flex items-center gap-2">
+                            <LogIn className="h-4 w-4" />
+              Entry Only
+                        </div>
+                    </SelectItem>
+                    <SelectItem value="exit">
+                        <div className="flex items-center gap-2">
+                            <LogOut className="h-4 w-4" />
+              Exit Only
+                        </div>
+                    </SelectItem>
+                    <SelectItem value="both">
+                        <div className="flex items-center gap-2">
+                            <ArrowLeftRight className="h-4 w-4" />
+              Both (Entry & Exit)
+                        </div>
+                    </SelectItem>
+                </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Specify whether this reader is used for entry, exit, or both directions</p>
+        </div>
+    </>
+);
+
 export default function ScannersPage() {
     const { user: currentUser } = useAuth();
     const { data: scanners, isLoading, fetchData, create, update, remove } = useCrud<Scanner>({ table: 'scanners' });
@@ -91,22 +138,36 @@ export default function ScannersPage() {
     const filteredAndSortedScanners = useMemo(() => {
         const filtered = scanners.filter((scanner) => {
             // Status filter
-            if (table.filters.status === 'active' && !scanner.is_active) { return false; }
-            if (table.filters.status === 'disabled' && scanner.is_active) { return false; }
+            if (table.filters.status === 'active' && !scanner.is_active) {
+                return false;
+            }
+            if (table.filters.status === 'disabled' && scanner.is_active) {
+                return false;
+            }
 
             // Reader type filter
-            if (table.filters.readerType !== 'all' && scanner.reader_type !== table.filters.readerType) { return false; }
+            if (table.filters.readerType !== 'all' && scanner.reader_type !== table.filters.readerType) {
+                return false;
+            }
 
             // Search query filter (using debounced value)
-            if (!table.debouncedSearchQuery) { return true; }
+            if (!table.debouncedSearchQuery) {
+                return true;
+            }
             const query = table.debouncedSearchQuery.toLowerCase();
             return scanner.id.toLowerCase().includes(query) || scanner.name.toLowerCase().includes(query) || scanner.location.toLowerCase().includes(query) || scanner.description?.toLowerCase().includes(query);
         });
 
         return sortData(filtered, table.sortField as keyof Scanner, table.sortDirection, (item, field) => {
-            if (field === 'reader_type') { return item.reader_type || 'both'; }
-            if (field === 'is_active') { return item.is_active ? 1 : 0; }
-            if (field === 'created_at') { return new Date(item.created_at).getTime(); }
+            if (field === 'reader_type') {
+                return item.reader_type || 'both';
+            }
+            if (field === 'is_active') {
+                return item.is_active ? 1 : 0;
+            }
+            if (field === 'created_at') {
+                return new Date(item.created_at).getTime();
+            }
             return item[field as keyof Scanner] as string;
         });
     }, [scanners, table.debouncedSearchQuery, table.filters, table.sortField, table.sortDirection]);
@@ -117,7 +178,9 @@ export default function ScannersPage() {
 
     // Handlers
     const handleCreate = async () => {
-        if (!createForm.form.name || !createForm.form.location) { return; }
+        if (!createForm.form.name || !createForm.form.location) {
+            return;
+        }
 
         const success = await submit(() =>
             create({
@@ -136,7 +199,9 @@ export default function ScannersPage() {
     };
 
     const handleEdit = async () => {
-        if (!editDialog.selectedItem) { return; }
+        if (!editDialog.selectedItem) {
+            return;
+        }
 
         const success = await submit(() =>
             update(editDialog.selectedItem!.id, {
@@ -157,7 +222,9 @@ export default function ScannersPage() {
     };
 
     const handleDelete = async (scanner: Scanner) => {
-        if (!confirm(`Are you sure you want to delete "${scanner.name}"?`)) { return; }
+        if (!confirm(`Are you sure you want to delete "${scanner.name}"?`)) {
+            return;
+        }
         await remove(scanner.id);
     };
 
@@ -244,53 +311,6 @@ export default function ScannersPage() {
         { label: 'Activate', icon: Power, onClick: handleToggleStatus, show: (scanner) => canEditScanners && !scanner.is_active },
         { label: 'Delete', icon: Trash2, onClick: handleDelete, variant: 'destructive', separator: true, show: () => canDeleteScanners }
     ];
-
-    // Form fields component
-    const ScannerFormFields = ({ form, updateField }: { form: ScannerForm; updateField: (field: keyof ScannerForm, value: string) => void }) => (
-        <>
-            <div className="space-y-2">
-                <Label htmlFor="name">Scanner Name</Label>
-                <Input id="name" placeholder="e.g., Main Entrance" value={form.name} onChange={(e) => updateField('name', e.target.value)} />
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="location">Location</Label>
-                <Input id="location" placeholder="e.g., Building A, Floor 1" value={form.location} onChange={(e) => updateField('location', e.target.value)} />
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="description">Description (Optional)</Label>
-                <Input id="description" placeholder="Additional details about this scanner" value={form.description} onChange={(e) => updateField('description', e.target.value)} />
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="reader_type">Reader Type</Label>
-                <Select value={form.reader_type} onValueChange={(value: ReaderType) => updateField('reader_type', value)}>
-                    <SelectTrigger>
-                        <SelectValue placeholder="Select reader type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="entry">
-                            <div className="flex items-center gap-2">
-                                <LogIn className="h-4 w-4" />
-                Entry Only
-                            </div>
-                        </SelectItem>
-                        <SelectItem value="exit">
-                            <div className="flex items-center gap-2">
-                                <LogOut className="h-4 w-4" />
-                Exit Only
-                            </div>
-                        </SelectItem>
-                        <SelectItem value="both">
-                            <div className="flex items-center gap-2">
-                                <ArrowLeftRight className="h-4 w-4" />
-                Both (Entry & Exit)
-                            </div>
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">Specify whether this reader is used for entry, exit, or both directions</p>
-            </div>
-        </>
-    );
 
     return (
         <div className="space-y-6">

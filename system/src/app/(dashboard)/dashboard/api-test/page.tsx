@@ -8,35 +8,40 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertCircle, ChevronDown, ChevronRight, Clock, Copy, Play, Plus, Trash2 } from 'lucide-react';
+import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { toast } from 'sonner';
 
-// API Endpoint definitions
 interface ApiEndpoint {
-    id: string;
-    name: string;
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
-    path: string;
-    description: string;
-    requestBody?: {
-        type: 'json';
-        schema: Record<string, {
-            type: string;
-            required?: boolean;
-            description?: string;
-            example?: string | number | boolean
-        }>;
-    };
-    queryParams?: Array<{
-        name: string;
+  id: string;
+  name: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  path: string;
+  description: string;
+  requestBody?: {
+    type: 'json';
+    schema: Record<
+      string,
+      {
         type: string;
         required?: boolean;
         description?: string;
-    }>;
-    responses: Array<{
-        status: number;
-        description: string;
-    }>;
+        example?: string | number | boolean;
+      }
+    >;
+  };
+  queryParams?: Array<{
+    name: string;
+    type: string;
+    required?: boolean;
+    description?: string;
+  }>;
+  responses: Array<{
+    status: number;
+    description: string;
+  }>;
 }
 
 const apiEndpoints: ApiEndpoint[] = [
@@ -64,30 +69,30 @@ const apiEndpoints: ApiEndpoint[] = [
             }
         },
         responses: [
-            {status: 200, description: 'Access granted'},
-            {status: 400, description: 'Missing required fields (scanner or token)'},
-            {status: 403, description: 'Token is disabled, Scanner is disabled, or Access denied'},
-            {status: 404, description: 'Token not found, User not found, or Scanner not found'},
-            {status: 500, description: 'Internal server error'}
+            { status: 200, description: 'Access granted - token has permission to access scanner' },
+            { status: 400, description: 'Missing required fields (scanner or token)' },
+            { status: 403, description: 'Resource disabled (token, scanner, user, or access rule) or access denied/expired' },
+            { status: 404, description: 'Resource not found (token, user, or scanner does not exist)' },
+            { status: 500, description: 'Internal server error or database function not found' }
         ]
     }
 ];
 
 interface KeyValuePair {
-    key: string;
-    value: string;
-    enabled: boolean;
+  key: string;
+  value: string;
+  enabled: boolean;
 }
 
 interface RequestHistory {
-    id: string;
-    timestamp: Date;
-    method: string;
-    url: string;
-    status: number;
-    duration: number;
-    requestBody?: string;
-    responseBody: string;
+  id: string;
+  timestamp: Date;
+  method: string;
+  url: string;
+  status: number;
+  duration: number;
+  requestBody?: string;
+  responseBody: string;
 }
 
 const methodColors: Record<string, string> = {
@@ -99,30 +104,32 @@ const methodColors: Record<string, string> = {
 };
 
 export default function ApiTestPage() {
+    const { theme } = useTheme();
     const [isDev, setIsDev] = useState(false);
     const [selectedEndpoint, setSelectedEndpoint] = useState<ApiEndpoint | null>(apiEndpoints[0]);
     const [customUrl, setCustomUrl] = useState('');
     const [method, setMethod] = useState<'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'>('GET');
     const [requestBody, setRequestBody] = useState('');
-    const [headers, setHeaders] = useState<KeyValuePair[]>([{
-        key: 'Content-Type',
-        value: 'application/json',
-        enabled: true
-    }]);
+    const [headers, setHeaders] = useState<KeyValuePair[]>([
+        {
+            key: 'Content-Type',
+            value: 'application/json',
+            enabled: true
+        }
+    ]);
     const [queryParams, setQueryParams] = useState<KeyValuePair[]>([]);
     const [response, setResponse] = useState<{
-        status: number;
-        statusText: string;
-        headers: Record<string, string>;
-        body: string;
-        duration: number;
-    } | null>(null);
+    status: number;
+    statusText: string;
+    headers: Record<string, string>;
+    body: string;
+    duration: number;
+  } | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [history, setHistory] = useState<RequestHistory[]>([]);
     const [expandedEndpoints, setExpandedEndpoints] = useState<Set<string>>(new Set(['access-check']));
 
     useEffect(() => {
-        // Check if we're in development mode
         setIsDev(process.env.NODE_ENV === 'development');
     }, []);
 
@@ -131,7 +138,6 @@ export default function ApiTestPage() {
             setMethod(selectedEndpoint.method);
             setCustomUrl(selectedEndpoint.path);
 
-            // Set default request body from schema
             if (selectedEndpoint.requestBody) {
                 const defaultBody: Record<string, string | number | boolean> = {};
                 Object.entries(selectedEndpoint.requestBody.schema).forEach(([key, value]) => {
@@ -157,7 +163,7 @@ export default function ApiTestPage() {
     };
 
     const addHeader = () => {
-        setHeaders([...headers, {key: '', value: '', enabled: true}]);
+        setHeaders([...headers, { key: '', value: '', enabled: true }]);
     };
 
     const removeHeader = (index: number) => {
@@ -166,12 +172,12 @@ export default function ApiTestPage() {
 
     const updateHeader = (index: number, field: 'key' | 'value' | 'enabled', value: string | boolean) => {
         const newHeaders = [...headers];
-        newHeaders[index] = {...newHeaders[index], [field]: value};
+        newHeaders[index] = { ...newHeaders[index], [field]: value };
         setHeaders(newHeaders);
     };
 
     const addQueryParam = () => {
-        setQueryParams([...queryParams, {key: '', value: '', enabled: true}]);
+        setQueryParams([...queryParams, { key: '', value: '', enabled: true }]);
     };
 
     const removeQueryParam = (index: number) => {
@@ -180,7 +186,7 @@ export default function ApiTestPage() {
 
     const updateQueryParam = (index: number, field: 'key' | 'value' | 'enabled', value: string | boolean) => {
         const newParams = [...queryParams];
-        newParams[index] = {...newParams[index], [field]: value};
+        newParams[index] = { ...newParams[index], [field]: value };
         setQueryParams(newParams);
     };
 
@@ -242,7 +248,6 @@ export default function ApiTestPage() {
                 duration
             });
 
-            // Add to history
             const historyEntry: RequestHistory = {
                 id: Date.now().toString(),
                 timestamp: new Date(),
@@ -303,10 +308,9 @@ export default function ApiTestPage() {
     if (!isDev) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-                <AlertCircle className="size-16 text-muted-foreground"/>
+                <AlertCircle className="size-16 text-muted-foreground" />
                 <h1 className="text-2xl font-bold">Development Only</h1>
-                <p className="text-muted-foreground text-center max-w-md">This page is only available in development
-                    mode. Set NODE_ENV=development to access the API testing interface.</p>
+                <p className="text-muted-foreground text-center max-w-md">This page is only available in development mode. Set NODE_ENV=development to access the API testing interface.</p>
             </div>
         );
     }
@@ -328,22 +332,17 @@ export default function ApiTestPage() {
                     <CardContent className="space-y-2">
                         {apiEndpoints.map((endpoint) => (
                             <div key={endpoint.id} className="border rounded-lg">
-                                <button
-                                    className="w-full flex items-center gap-2 p-3 hover:bg-muted/50 transition-colors"
-                                    onClick={() => toggleEndpoint(endpoint.id)}>
-                                    {expandedEndpoints.has(endpoint.id) ? <ChevronDown className="size-4"/> :
-                                        <ChevronRight className="size-4"/>}
-                                    <Badge
-                                        className={`${methodColors[endpoint.method]} text-white text-xs`}>{endpoint.method}</Badge>
+                                <button className="w-full flex items-center gap-2 p-3 hover:bg-muted/50 transition-colors" onClick={() => toggleEndpoint(endpoint.id)}>
+                                    {expandedEndpoints.has(endpoint.id) ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                                    <Badge className={`${methodColors[endpoint.method]} text-white text-xs`}>{endpoint.method}</Badge>
                                     <span className="text-sm font-medium truncate">{endpoint.name}</span>
                                 </button>
                                 {expandedEndpoints.has(endpoint.id) && (
                                     <div className="px-3 pb-3 space-y-2">
                                         <code className="text-xs text-muted-foreground block">{endpoint.path}</code>
                                         <p className="text-xs text-muted-foreground">{endpoint.description}</p>
-                                        <Button size="sm" variant="outline" className="w-full"
-                                            onClick={() => setSelectedEndpoint(endpoint)}>
-                                            Use this endpoint
+                                        <Button size="sm" variant="outline" className="w-full" onClick={() => setSelectedEndpoint(endpoint)}>
+                      Use this endpoint
                                         </Button>
                                     </div>
                                 )}
@@ -362,7 +361,7 @@ export default function ApiTestPage() {
                         <div className="flex gap-2">
                             <Select value={method} onValueChange={(v) => setMethod(v as typeof method)}>
                                 <SelectTrigger className="w-[120px]">
-                                    <SelectValue/>
+                                    <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="GET">GET</SelectItem>
@@ -372,10 +371,9 @@ export default function ApiTestPage() {
                                     <SelectItem value="PATCH">PATCH</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <Input value={customUrl} onChange={(e) => setCustomUrl(e.target.value)}
-                                placeholder="/api/v1/..." className="flex-1 font-mono text-sm"/>
+                            <Input value={customUrl} onChange={(e) => setCustomUrl(e.target.value)} placeholder="/api/v1/..." className="flex-1 font-mono text-sm" />
                             <Button onClick={sendRequest} disabled={isLoading}>
-                                <Play className="size-4 mr-2"/>
+                                <Play className="size-4 mr-2" />
                                 {isLoading ? 'Sending...' : 'Send'}
                             </Button>
                         </div>
@@ -391,12 +389,10 @@ export default function ApiTestPage() {
                                 <div className="flex justify-between items-center">
                                     <Label>Request Body (JSON)</Label>
                                     <Button variant="ghost" size="sm" onClick={formatJson}>
-                                        Format JSON
+                    Format JSON
                                     </Button>
                                 </div>
-                                <textarea value={requestBody} onChange={(e) => setRequestBody(e.target.value)}
-                                    className="w-full h-48 p-3 font-mono text-sm border rounded-md bg-muted/30 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-                                    placeholder='{"key": "value"}'/>
+                                <textarea value={requestBody} onChange={(e) => setRequestBody(e.target.value)} className="w-full h-48 p-3 font-mono text-sm border rounded-md bg-muted/30 resize-none focus:outline-none focus:ring-2 focus:ring-ring" placeholder='{"key": "value"}' />
                                 {selectedEndpoint?.requestBody && (
                                     <div className="text-xs text-muted-foreground space-y-1">
                                         <p className="font-medium">Schema:</p>
@@ -406,7 +402,7 @@ export default function ApiTestPage() {
                                                 <span>({value.type})</span>
                                                 {value.required && (
                                                     <Badge variant="outline" className="text-xs">
-                                                        required
+                            required
                                                     </Badge>
                                                 )}
                                                 {value.description && <span>- {value.description}</span>}
@@ -419,46 +415,34 @@ export default function ApiTestPage() {
                             <TabsContent value="headers" className="space-y-2">
                                 {headers.map((header, index) => (
                                     <div key={index} className="flex gap-2 items-center">
-                                        <input type="checkbox" checked={header.enabled}
-                                            onChange={(e) => updateHeader(index, 'enabled', e.target.checked)}
-                                            className="size-4"/>
-                                        <Input value={header.key}
-                                            onChange={(e) => updateHeader(index, 'key', e.target.value)}
-                                            placeholder="Header name" className="flex-1"/>
-                                        <Input value={header.value}
-                                            onChange={(e) => updateHeader(index, 'value', e.target.value)}
-                                            placeholder="Value" className="flex-1"/>
+                                        <input type="checkbox" checked={header.enabled} onChange={(e) => updateHeader(index, 'enabled', e.target.checked)} className="size-4" />
+                                        <Input value={header.key} onChange={(e) => updateHeader(index, 'key', e.target.value)} placeholder="Header name" className="flex-1" />
+                                        <Input value={header.value} onChange={(e) => updateHeader(index, 'value', e.target.value)} placeholder="Value" className="flex-1" />
                                         <Button variant="ghost" size="icon" onClick={() => removeHeader(index)}>
-                                            <Trash2 className="size-4"/>
+                                            <Trash2 className="size-4" />
                                         </Button>
                                     </div>
                                 ))}
                                 <Button variant="outline" size="sm" onClick={addHeader}>
-                                    <Plus className="size-4 mr-2"/>
-                                    Add Header
+                                    <Plus className="size-4 mr-2" />
+                  Add Header
                                 </Button>
                             </TabsContent>
 
                             <TabsContent value="params" className="space-y-2">
                                 {queryParams.map((param, index) => (
                                     <div key={index} className="flex gap-2 items-center">
-                                        <input type="checkbox" checked={param.enabled}
-                                            onChange={(e) => updateQueryParam(index, 'enabled', e.target.checked)}
-                                            className="size-4"/>
-                                        <Input value={param.key}
-                                            onChange={(e) => updateQueryParam(index, 'key', e.target.value)}
-                                            placeholder="Parameter name" className="flex-1"/>
-                                        <Input value={param.value}
-                                            onChange={(e) => updateQueryParam(index, 'value', e.target.value)}
-                                            placeholder="Value" className="flex-1"/>
+                                        <input type="checkbox" checked={param.enabled} onChange={(e) => updateQueryParam(index, 'enabled', e.target.checked)} className="size-4" />
+                                        <Input value={param.key} onChange={(e) => updateQueryParam(index, 'key', e.target.value)} placeholder="Parameter name" className="flex-1" />
+                                        <Input value={param.value} onChange={(e) => updateQueryParam(index, 'value', e.target.value)} placeholder="Value" className="flex-1" />
                                         <Button variant="ghost" size="icon" onClick={() => removeQueryParam(index)}>
-                                            <Trash2 className="size-4"/>
+                                            <Trash2 className="size-4" />
                                         </Button>
                                     </div>
                                 ))}
                                 <Button variant="outline" size="sm" onClick={addQueryParam}>
-                                    <Plus className="size-4 mr-2"/>
-                                    Add Parameter
+                                    <Plus className="size-4 mr-2" />
+                  Add Parameter
                                 </Button>
                             </TabsContent>
                         </Tabs>
@@ -477,12 +461,12 @@ export default function ApiTestPage() {
                                     {response.status} {response.statusText}
                                 </Badge>
                                 <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                    <Clock className="size-4"/>
+                                    <Clock className="size-4" />
                                     {response.duration}ms
                                 </div>
                                 <Button variant="ghost" size="sm" onClick={() => copyToClipboard(response.body)}>
-                                    <Copy className="size-4 mr-2"/>
-                                    Copy
+                                    <Copy className="size-4 mr-2" />
+                  Copy
                                 </Button>
                             </div>
                         </div>
@@ -494,8 +478,19 @@ export default function ApiTestPage() {
                                 <TabsTrigger value="headers">Headers</TabsTrigger>
                             </TabsList>
                             <TabsContent value="body">
-                                <pre
-                                    className="p-4 bg-muted/30 rounded-md overflow-auto max-h-96 text-sm font-mono">{response.body}</pre>
+                                <SyntaxHighlighter
+                                    language="json"
+                                    style={theme === 'dark' ? oneDark : oneLight}
+                                    customStyle={{
+                                        margin: 0,
+                                        padding: '1rem',
+                                        borderRadius: '0.375rem',
+                                        maxHeight: '24rem',
+                                        overflow: 'auto',
+                                        fontSize: '0.875rem'
+                                    }}>
+                                    {response.body}
+                                </SyntaxHighlighter>
                             </TabsContent>
                             <TabsContent value="headers">
                                 <div className="p-4 bg-muted/30 rounded-md overflow-auto max-h-96">
@@ -519,7 +514,7 @@ export default function ApiTestPage() {
                         <div className="flex items-center justify-between">
                             <CardTitle className="text-lg">Request History</CardTitle>
                             <Button variant="ghost" size="sm" onClick={() => setHistory([])}>
-                                Clear History
+                Clear History
                             </Button>
                         </div>
                     </CardHeader>
@@ -536,13 +531,11 @@ export default function ApiTestPage() {
                                             setRequestBody(item.requestBody);
                                         }
                                     }}>
-                                    <Badge
-                                        className={`${methodColors[item.method]} text-white text-xs`}>{item.method}</Badge>
+                                    <Badge className={`${methodColors[item.method]} text-white text-xs`}>{item.method}</Badge>
                                     <code className="text-sm flex-1 truncate">{item.url}</code>
                                     <Badge className={getStatusColor(item.status)}>{item.status}</Badge>
                                     <span className="text-xs text-muted-foreground">{item.duration}ms</span>
-                                    <span
-                                        className="text-xs text-muted-foreground">{item.timestamp.toLocaleTimeString()}</span>
+                                    <span className="text-xs text-muted-foreground">{item.timestamp.toLocaleTimeString()}</span>
                                 </div>
                             ))}
                         </div>

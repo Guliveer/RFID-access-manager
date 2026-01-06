@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 interface ResponseAccess {
   granted: boolean;
@@ -27,7 +28,6 @@ interface ErrorResponse {
 
 type Response = SuccessResponse | ErrorResponse;
 
-// Database function response type
 interface DbFunctionResponse {
   success: boolean;
   error?: string;
@@ -44,6 +44,11 @@ interface DbFunctionResponse {
   };
   timestamp?: string;
 }
+
+const AccessRequestSchema = z.object({
+    scanner: z.string().min(1, 'Scanner ID is required'),
+    token: z.string().min(1, 'Token is required')
+});
 
 /**
  * Verifies if an RFID token has access to a specific scanner.
@@ -74,24 +79,23 @@ export async function POST(request: Request): Promise<NextResponse<Response>> {
 
     try {
         const body = await request.json();
-        const { scanner, token } = body;
+        const validation = AccessRequestSchema.safeParse(body);
 
-        // Validate required parameters
-        if (!scanner || !token) {
+        if (!validation.success) {
             return NextResponse.json(
                 {
                     access: { granted: false },
-                    error: 'Missing required fields. Both scanner and token are required.',
+                    error: validation.error.issues[0].message,
                     timestamp
                 },
                 { status: 400 }
             );
         }
 
-        // Create Supabase client
+        const { scanner, token } = validation.data;
+
         const supabase = await createClient();
 
-        // Call the database function
         const { data, error } = await supabase.rpc('check_rfid_access', {
             p_scanner_id: scanner,
             p_token_uid: token
@@ -101,7 +105,6 @@ export async function POST(request: Request): Promise<NextResponse<Response>> {
             console.error('RPC error:', error);
             console.error('RPC error details:', JSON.stringify(error, null, 2));
 
-            // Check if the function doesn't exist
             if (error.message?.includes('function') || error.code === '42883') {
                 return NextResponse.json(
                     {
@@ -125,7 +128,6 @@ export async function POST(request: Request): Promise<NextResponse<Response>> {
 
         const result = data as DbFunctionResponse;
 
-        // Handle function errors
         if (!result.success) {
             const errorCodeToStatus: Record<string, number> = {
                 TOKEN_NOT_FOUND: 404,
@@ -151,7 +153,6 @@ export async function POST(request: Request): Promise<NextResponse<Response>> {
             );
         }
 
-        // Return success response
         return NextResponse.json(
             {
                 access: result.access!,

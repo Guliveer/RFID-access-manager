@@ -16,11 +16,9 @@ import { createUser, deleteUser, resetUserPassword, toggleUserActive } from './a
 import { PageHeader, DataTable, FormDialog, ConfirmDialog, CopyableId, SortableHeader, FilterCard, SearchInput, FilterSelect, ClearFiltersButton, FilterGrid, FilterRow, STATUS_FILTER_OPTIONS, ROLE_FILTER_OPTIONS } from '@/components/dashboard';
 import { useCrud, useDialog, useForm, useSubmit } from '@/hooks/use-crud';
 import { useTable, sortData } from '@/hooks/use-table';
-import type { User, UserRole } from '@/types/database';
-import { canManageRole } from '@/types/database';
+import { canManageRole, type User, type UserRole } from '@/types/database';
 import type { Column, Action } from '@/components/dashboard/data-table';
 
-// Form types
 interface CreateUserForm {
   email: string;
   full_name: string;
@@ -34,11 +32,12 @@ interface EditUserForm {
 const initialCreateForm: CreateUserForm = { email: '', full_name: '', role: 'user' };
 const initialEditForm: EditUserForm = { full_name: '' };
 
-// Helper functions
-const generateTempPassword = (email: string): string => {
-    const localPart = email.split('@')[0];
-    const currentYear = new Date().getFullYear();
-    return `${localPart}${currentYear}`;
+const generateTempPassword = (): string => {
+    const array = new Uint8Array(12);
+    crypto.getRandomValues(array);
+    return Array.from(array, (byte) => byte.toString(16).padStart(2, '0'))
+        .join('')
+        .slice(0, 16);
 };
 
 const getDefaultFullName = (email: string): string => {
@@ -90,33 +89,44 @@ export default function UsersPage() {
         fetchData();
     }, [fetchData]);
 
-    // Permissions
     const currentUserRole = currentUser?.role || 'user';
     const canCreateUsers = currentUserRole === 'root' || currentUserRole === 'admin';
     const canChangeRoles = currentUserRole === 'root';
     const canDeleteUsers = currentUserRole === 'root';
 
     const canManageUser = (targetUser: User): boolean => {
-        if (!currentUser) { return false; }
-        if (currentUser.id === targetUser.id) { return false; }
+        if (!currentUser) {
+            return false;
+        }
+        if (currentUser.id === targetUser.id) {
+            return false;
+        }
         return canManageRole(currentUserRole, targetUser.role);
     };
 
-    // Filter and sort users (using debouncedSearchQuery for performance)
     const filteredAndSortedUsers = useMemo(() => {
         const filtered = users.filter((user) => {
-            if (table.filters.role !== 'all' && user.role !== table.filters.role) { return false; }
-            if (table.filters.status === 'active' && !user.is_active) { return false; }
-            if (table.filters.status === 'disabled' && user.is_active) { return false; }
+            if (table.filters.role !== 'all' && user.role !== table.filters.role) {
+                return false;
+            }
+            if (table.filters.status === 'active' && !user.is_active) {
+                return false;
+            }
+            if (table.filters.status === 'disabled' && user.is_active) {
+                return false;
+            }
 
-            // Search query filter (using debounced value)
-            if (!table.debouncedSearchQuery) { return true; }
+            if (!table.debouncedSearchQuery) {
+                return true;
+            }
             const query = table.debouncedSearchQuery.toLowerCase();
             return user.id.toLowerCase().includes(query) || user.email.toLowerCase().includes(query) || user.full_name?.toLowerCase().includes(query) || user.role.toLowerCase().includes(query);
         });
 
         return sortData(filtered, table.sortField as keyof User, table.sortDirection, (item, field) => {
-            if (field === 'created_at') { return new Date(item.created_at).getTime(); }
+            if (field === 'created_at') {
+                return new Date(item.created_at).getTime();
+            }
             return item[field as keyof User] as string;
         });
     }, [users, table.debouncedSearchQuery, table.filters, table.sortField, table.sortDirection]);
@@ -138,7 +148,7 @@ export default function UsersPage() {
             return;
         }
 
-        const tempPassword = generateTempPassword(createForm.form.email);
+        const tempPassword = generateTempPassword();
         const email = createForm.form.email;
         const fullName = createForm.form.full_name || getDefaultFullName(email);
         const role = createForm.form.role;
@@ -168,7 +178,9 @@ export default function UsersPage() {
     };
 
     const handleEditUser = async () => {
-        if (!editDialog.selectedItem) { return; }
+        if (!editDialog.selectedItem) {
+            return;
+        }
 
         await submit(async () => {
             const { error } = await supabase.from('users').update({ full_name: editForm.form.full_name }).eq('id', editDialog.selectedItem!.id);
@@ -185,7 +197,9 @@ export default function UsersPage() {
     };
 
     const handleChangeRole = async () => {
-        if (!roleDialog.selectedItem) { return; }
+        if (!roleDialog.selectedItem) {
+            return;
+        }
 
         await submit(async () => {
             const { error } = await supabase.from('users').update({ role: roleForm.form.role }).eq('id', roleDialog.selectedItem!.id);
@@ -202,7 +216,9 @@ export default function UsersPage() {
     };
 
     const handleResetPassword = async () => {
-        if (!passwordDialog.selectedItem || !passwordForm.form.password) { return; }
+        if (!passwordDialog.selectedItem || !passwordForm.form.password) {
+            return;
+        }
 
         if (passwordForm.form.password.length < 6) {
             toast.error('Password must be at least 6 characters');
@@ -224,7 +240,9 @@ export default function UsersPage() {
     };
 
     const handleDeleteUser = async () => {
-        if (!deleteDialog.selectedItem) { return; }
+        if (!deleteDialog.selectedItem) {
+            return;
+        }
 
         const user = deleteDialog.selectedItem;
 
@@ -246,7 +264,9 @@ export default function UsersPage() {
     };
 
     const handleToggleUserActive = async () => {
-        if (!toggleActiveDialog.selectedItem) { return; }
+        if (!toggleActiveDialog.selectedItem) {
+            return;
+        }
 
         const user = toggleActiveDialog.selectedItem;
         const newStatus = !user.is_active;
@@ -483,11 +503,7 @@ export default function UsersPage() {
                 <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <Input id="email" type="email" placeholder="user@example.com" value={createForm.form.email} onChange={(e) => createForm.updateField('email', e.target.value)} />
-                    {createForm.form.email && (
-                        <p className="text-xs text-muted-foreground">
-              Temporary password will be: <code className="bg-muted px-1 py-0.5 rounded">{generateTempPassword(createForm.form.email)}</code>
-                        </p>
-                    )}
+                    <p className="text-xs text-muted-foreground">Temporary password will be generated automatically</p>
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="full_name">Full Name</Label>
